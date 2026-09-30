@@ -46,16 +46,12 @@ The popup has three settings. They are saved when you click **Summarize this pag
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | Region | US | Logfire and gateway region. Each region keeps its own login. |
-| Model | `openai:gpt-4.1` | Gateway route and model, as `route:model`. |
+| Model | `gpt-4.1` on the `openai` route | Model used for the summary, grouped by gateway route. |
 | Persona | empty | Whose voice the summary is written in, e.g. `Martin Fowler`. Leave it empty for a neutral voice. |
 
-The route is the provider slug configured on your gateway project, such as `openai`, `anthropic`, or `groq`. Some
-examples:
-
-- `openai:gpt-4.1`
-- `anthropic:claude-sonnet-4-5`
-- `groq:llama-3.3-70b-versatile`
+The model list comes from the gateway's `/proxy/models` endpoint, so it shows only the providers configured on the
+project you picked at login. Opening the popup before you have logged in starts the login.
 
 > [!NOTE]
-> **The route must speak the OpenAI chat API.** The extension always calls `/v1/chat/completions` on the route.
-> OpenAI, Anthropic, Groq, Mistral, and other OpenAI-compatible providers work. Google routes do not.
+> **Google and Bedrock routes are hidden.** The extension calls the OpenAI chat completions API on every route, and
+> those providers use a different API.

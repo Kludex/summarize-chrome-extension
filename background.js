@@ -7,13 +7,26 @@ const REDIRECT_URI = chrome.identity.getRedirectURL();
 // ponytail: hard cut on page length, chunk + merge if long pages need full coverage
 const MAX_PAGE_CHARS = 100_000;
 
+// These gateway providers don't speak the OpenAI chat completions API.
+const NON_CHAT_PROVIDERS = new Set(["google-vertex", "google-gla", "bedrock"]);
+
 chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
-  summarize(request).then(
-    (summary) => sendResponse({ summary }),
+  const handler = request.type === "models" ? listModels : summarize;
+  handler(request).then(
+    (result) => sendResponse({ result }),
     (error) => sendResponse({ error: error.message }),
   );
   return true;
 });
+
+async function listModels({ region }) {
+  const response = await fetch(`${REGIONS[region].gateway}/proxy/models`, {
+    headers: { Authorization: `Bearer ${await accessToken(region)}` },
+  });
+  if (!response.ok) throw new Error(`Gateway ${response.status}: ${await response.text()}`);
+  const routes = await response.json();
+  return routes.filter(({ provider, models }) => !NON_CHAT_PROVIDERS.has(provider) && models.length);
+}
 
 async function summarize({ tabId, region, model, persona }) {
   const [{ result: text }] = await chrome.scripting
@@ -25,8 +38,7 @@ async function summarize({ tabId, region, model, persona }) {
       throw new Error("Chrome doesn't allow extensions to read this page. Try a regular website.");
     });
   const separator = model.indexOf(":");
-  const [route, modelName] =
-    separator === -1 ? ["openai", model] : [model.slice(0, separator), model.slice(separator + 1)];
+  const [route, modelName] = [model.slice(0, separator), model.slice(separator + 1)];
   const voice = persona ? `, written the way ${persona} would write it` : "";
   const response = await fetch(`${REGIONS[region].gateway}/proxy/${route}/v1/chat/completions`, {
     method: "POST",
