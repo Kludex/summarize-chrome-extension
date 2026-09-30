@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Summarize Page",
+  "version": "0.1.0",
+  "description": "Summarize the current page in a single paragraph using the Pydantic AI Gateway.",
+  "action": { "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab", "scripting", "identity", "storage"],
+  "host_permissions": ["https://logfire-us.pydantic.dev/*", "https://gateway-us.pydantic.dev/*"]
+}
