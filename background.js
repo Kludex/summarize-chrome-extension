@@ -50,7 +50,7 @@ async function summarize({ tabId, region, model, persona }) {
     },
     body: JSON.stringify({
       model: modelName,
-      max_tokens: 200,
+      max_tokens: 2000,
       messages: [
         {
           role: "system",
@@ -66,8 +66,9 @@ async function summarize({ tabId, region, model, persona }) {
     }),
   });
   if (!response.ok) throw new Error(`Gateway ${response.status}: ${await response.text()}`);
-  const { choices } = await response.json();
-  return choices[0].message.content.replace(/\s*[—–]\s*/g, ", ");
+  const [{ message, finish_reason }] = (await response.json()).choices;
+  if (!message.content) throw new Error(`Empty response from ${model} (finish_reason: ${finish_reason})`);
+  return message.content.replace(/\s*[—–]\s*/g, ", ");
 }
 
 async function accessToken(region) {

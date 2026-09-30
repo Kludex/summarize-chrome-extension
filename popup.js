@@ -46,7 +46,7 @@ button.addEventListener("click", async () => {
     tabId: tab.id,
     ...settings,
   });
-  if (result) output.innerHTML = DOMPurify.sanitize(marked.parse(result));
-  else output.textContent = `Error: ${error}`;
+  if (error) output.textContent = `Error: ${error}`;
+  else output.innerHTML = DOMPurify.sanitize(marked.parse(result));
   button.disabled = false;
 });
