@@ -46,7 +46,7 @@ The popup has three settings. They are saved when you click **Summarize this pag
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | Region | US | Logfire and gateway region. Each region keeps its own login. |
-| Model | `gpt-4.1` on the `openai` route | Model used for the summary, grouped by gateway route. |
+| Model | Claude Haiku 4.5 on the `anthropic` route | Model used for the summary, grouped by gateway route. |
 | Persona | empty | Whose voice the summary is written in, e.g. `Martin Fowler`. Leave it empty for a neutral voice. |
 
 The model list comes from the gateway's `/proxy/models` endpoint, so it shows only the providers configured on the

@@ -7,7 +7,7 @@ const persona = document.getElementById("persona");
 chrome.storage.local.get("settings").then(({ settings = {} }) => {
   region.value = settings.region ?? region.value;
   persona.value = settings.persona ?? "";
-  loadModels(settings.model ?? "openai:gpt-4.1");
+  loadModels(settings.model ?? "anthropic:claude-haiku-4-5");
 });
 
 region.addEventListener("change", () => loadModels(model.value));
