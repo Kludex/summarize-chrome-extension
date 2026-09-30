@@ -5,11 +5,28 @@
     <base target="_blank" />
     <style>
       body { width: 380px; font: 14px/1.5 system-ui, sans-serif; margin: 12px; }
-      button { width: 100%; padding: 8px; }
+      label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+      label input, label select { width: 240px; box-sizing: border-box; }
+      button { width: 100%; padding: 8px; margin-top: 4px; }
       code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }
     </style>
   </head>
   <body>
+    <label>
+      Region
+      <select id="region">
+        <option value="us">US</option>
+        <option value="eu">EU</option>
+      </select>
+    </label>
+    <label>
+      Model
+      <input id="model" value="openai:gpt-4.1" placeholder="route:model" required />
+    </label>
+    <label>
+      Persona
+      <input id="persona" placeholder="e.g. Martin Fowler (optional)" />
+    </label>
     <button id="summarize">Summarize this page</button>
     <div id="output"></div>
     <script src="vendor/marked.js"></script>

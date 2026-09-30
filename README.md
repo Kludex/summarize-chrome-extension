@@ -7,7 +7,7 @@ A Chrome extension that summarizes the current page in a single short paragraph,
 
 - Google Chrome, or another Chromium-based browser.
 - A [Pydantic Logfire](https://logfire.pydantic.dev) account with a project that has the AI Gateway enabled.
-- An OpenAI provider configured on that project's gateway, with access to `gpt-4.1`.
+- A provider configured on that project's gateway, such as OpenAI or Anthropic.
 
 ## Install
 
@@ -39,31 +39,23 @@ use. The popup closes when that window opens, so click the button again after yo
 > **Some pages cannot be summarized.** Chrome does not let extensions read its own pages, such as `chrome://` URLs,
 > the New Tab page, the Chrome Web Store, and the built-in PDF viewer.
 
-## Configuration
+## Settings
 
-Settings are constants at the top of `background.js`. Reload the extension after changing them.
+The popup has three settings. They are saved when you click **Summarize this page**.
 
-| Constant | Default | Purpose |
+| Setting | Default | Purpose |
 | --- | --- | --- |
-| `AUTHORIZATION_SERVER` | `https://logfire-us.pydantic.dev` | Logfire region you log in to. |
-| `GATEWAY` | `https://gateway-us.pydantic.dev` | Gateway region used for inference. |
-| `MODEL` | `gpt-4.1` | Model sent to the gateway's OpenAI route. |
-| `MAX_PAGE_CHARS` | `100000` | Page text beyond this length is cut before summarizing, to bound cost. |
+| Region | US | Logfire and gateway region. Each region keeps its own login. |
+| Model | `openai:gpt-4.1` | Gateway route and model, as `route:model`. |
+| Persona | empty | Whose voice the summary is written in, e.g. `Martin Fowler`. Leave it empty for a neutral voice. |
 
-### EU region
+The route is the provider slug configured on your gateway project, such as `openai`, `anthropic`, or `groq`. Some
+examples:
 
-If your Logfire account is in the EU, set:
+- `openai:gpt-4.1`
+- `anthropic:claude-sonnet-4-5`
+- `groq:llama-3.3-70b-versatile`
 
-```js
-const AUTHORIZATION_SERVER = "https://logfire-eu.pydantic.dev";
-const GATEWAY = "https://gateway-eu.pydantic.dev";
-```
-
-Then update `host_permissions` in `manifest.json` to match:
-
-```json
-"host_permissions": ["https://logfire-eu.pydantic.dev/*", "https://gateway-eu.pydantic.dev/*"]
-```
-
-The host permissions are required because the gateway does not send CORS headers. Chrome skips CORS only for hosts the
-extension declares.
+> [!NOTE]
+> **The route must speak the OpenAI chat API.** The extension always calls `/v1/chat/completions` on the route.
+> OpenAI, Anthropic, Groq, Mistral, and other OpenAI-compatible providers work. Google routes do not.

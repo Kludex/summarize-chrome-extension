@@ -6,5 +6,10 @@
   "action": { "default_popup": "popup.html" },
   "background": { "service_worker": "background.js" },
   "permissions": ["activeTab", "scripting", "identity", "storage"],
-  "host_permissions": ["https://logfire-us.pydantic.dev/*", "https://gateway-us.pydantic.dev/*"]
+  "host_permissions": [
+    "https://logfire-us.pydantic.dev/*",
+    "https://gateway-us.pydantic.dev/*",
+    "https://logfire-eu.pydantic.dev/*",
+    "https://gateway-eu.pydantic.dev/*"
+  ]
 }

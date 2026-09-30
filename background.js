@@ -1,21 +1,21 @@
-const AUTHORIZATION_SERVER = "https://logfire-us.pydantic.dev";
-const GATEWAY = "https://gateway-us.pydantic.dev";
-const RESOURCE = `${GATEWAY}/proxy`;
+const REGIONS = {
+  us: { authorizationServer: "https://logfire-us.pydantic.dev", gateway: "https://gateway-us.pydantic.dev" },
+  eu: { authorizationServer: "https://logfire-eu.pydantic.dev", gateway: "https://gateway-eu.pydantic.dev" },
+};
 const SCOPE = "project:gateway_proxy";
-const MODEL = "gpt-4.1";
 const REDIRECT_URI = chrome.identity.getRedirectURL();
 // ponytail: hard cut on page length, chunk + merge if long pages need full coverage
 const MAX_PAGE_CHARS = 100_000;
 
-chrome.runtime.onMessage.addListener(({ tabId }, _sender, sendResponse) => {
-  summarize(tabId).then(
+chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  summarize(request).then(
     (summary) => sendResponse({ summary }),
     (error) => sendResponse({ error: error.message }),
   );
   return true;
 });
 
-async function summarize(tabId) {
+async function summarize({ tabId, region, model, persona }) {
   const [{ result: text }] = await chrome.scripting
     .executeScript({
       target: { tabId },
@@ -24,25 +24,27 @@ async function summarize(tabId) {
     .catch(() => {
       throw new Error("Chrome doesn't allow extensions to read this page. Try a regular website.");
     });
-  const response = await fetch(`${RESOURCE}/openai/chat/completions`, {
+  const separator = model.indexOf(":");
+  const [route, modelName] =
+    separator === -1 ? ["openai", model] : [model.slice(0, separator), model.slice(separator + 1)];
+  const voice = persona ? `, written the way ${persona} would write it` : "";
+  const response = await fetch(`${REGIONS[region].gateway}/proxy/${route}/v1/chat/completions`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${await accessToken()}`,
+      Authorization: `Bearer ${await accessToken(region)}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: modelName,
       max_tokens: 200,
       messages: [
         {
           role: "system",
           content:
-            "Summarize the web page the user sends in a single paragraph, written the way " +
-            "Martin Fowler writes on martinfowler.com: thoughtful, conversational first person, " +
-            "precise about terms, weighing tradeoffs, and candid about where an idea stops working. " +
-            "Use Markdown inline: *italics* for a term being named, **bold** sparingly for the key " +
-            "idea, `code` for code, names, and paths, and links when useful. No emoji. " +
-            "Never use em dashes or en dashes. No headings, no lists, no preamble. " +
+            `Summarize the web page the user sends in a single paragraph${voice}. ` +
+            "Use Markdown inline: **bold** sparingly for the key idea, `code` for code, names, " +
+            "and paths, and links when useful. Never use em dashes or en dashes. " +
+            "No headings, no lists, no preamble. " +
             "Be brief: at most 3 sentences and 70 words. Keep only the central point and why it matters.",
         },
         { role: "user", content: text.slice(0, MAX_PAGE_CHARS) },
@@ -54,37 +56,38 @@ async function summarize(tabId) {
   return choices[0].message.content.replace(/\s*[—–]\s*/g, ", ");
 }
 
-async function accessToken() {
-  const { accessToken, refreshToken, expiresAt, clientId } = await chrome.storage.local.get();
+async function accessToken(region) {
+  const { accessToken, refreshToken, expiresAt, clientId } = await loadAuth(region);
   if (accessToken && Date.now() < expiresAt) return accessToken;
   if (refreshToken) {
     try {
-      return await requestToken({
+      return await requestToken(region, {
         grant_type: "refresh_token",
         refresh_token: refreshToken,
         client_id: clientId,
       });
     } catch {
-      await chrome.storage.local.remove(["accessToken", "refreshToken", "expiresAt"]);
+      await saveAuth(region, { accessToken: null, refreshToken: null });
     }
   }
-  return login();
+  return login(region);
 }
 
-async function login() {
-  const clientId = await registeredClientId();
+async function login(region) {
+  const { authorizationServer, gateway } = REGIONS[region];
+  const clientId = await registeredClientId(region);
   const verifier = randomString();
   const state = randomString();
   const challenge = base64url(
     await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)),
   );
-  const url = new URL(`${AUTHORIZATION_SERVER}/api/oauth/authorize`);
+  const url = new URL(`${authorizationServer}/api/oauth/authorize`);
   url.search = new URLSearchParams({
     response_type: "code",
     client_id: clientId,
     redirect_uri: REDIRECT_URI,
     scope: SCOPE,
-    resource: RESOURCE,
+    resource: `${gateway}/proxy`,
     state,
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -95,29 +98,29 @@ async function login() {
     redirect = await chrome.identity.launchWebAuthFlow({ url: url.href, interactive: true });
   } catch (error) {
     // Unused DCR clients are garbage-collected server side, so re-register next time.
-    await chrome.storage.local.remove("clientId");
+    await saveAuth(region, { clientId: null });
     throw error;
   }
 
   const params = new URL(redirect).searchParams;
   if (params.get("state") !== state) throw new Error("OAuth state mismatch");
   if (params.has("error")) throw new Error(params.get("error_description") ?? params.get("error"));
-  if (params.get("iss") !== AUTHORIZATION_SERVER) throw new Error("OAuth issuer mismatch");
+  if (params.get("iss") !== authorizationServer) throw new Error("OAuth issuer mismatch");
 
-  return requestToken({
+  return requestToken(region, {
     grant_type: "authorization_code",
     code: params.get("code"),
     redirect_uri: REDIRECT_URI,
     client_id: clientId,
     code_verifier: verifier,
-    resource: RESOURCE,
+    resource: `${gateway}/proxy`,
   });
 }
 
-async function registeredClientId() {
-  const { clientId } = await chrome.storage.local.get("clientId");
+async function registeredClientId(region) {
+  const { clientId } = await loadAuth(region);
   if (clientId) return clientId;
-  const response = await fetch(`${AUTHORIZATION_SERVER}/api/oauth/register`, {
+  const response = await fetch(`${REGIONS[region].authorizationServer}/api/oauth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -130,23 +133,31 @@ async function registeredClientId() {
   });
   if (!response.ok) throw new Error(`Registration ${response.status}: ${await response.text()}`);
   const { client_id } = await response.json();
-  await chrome.storage.local.set({ clientId: client_id });
+  await saveAuth(region, { clientId: client_id });
   return client_id;
 }
 
-async function requestToken(params) {
-  const response = await fetch(`${AUTHORIZATION_SERVER}/api/oauth/token`, {
+async function requestToken(region, params) {
+  const response = await fetch(`${REGIONS[region].authorizationServer}/api/oauth/token`, {
     method: "POST",
     body: new URLSearchParams(params),
   });
   if (!response.ok) throw new Error(`Token ${response.status}: ${await response.text()}`);
   const { access_token, refresh_token, expires_in } = await response.json();
-  await chrome.storage.local.set({
+  await saveAuth(region, {
     accessToken: access_token,
     refreshToken: refresh_token,
     expiresAt: Date.now() + (expires_in - 60) * 1000,
   });
   return access_token;
+}
+
+async function loadAuth(region) {
+  return (await chrome.storage.local.get(region))[region] ?? {};
+}
+
+async function saveAuth(region, changes) {
+  await chrome.storage.local.set({ [region]: { ...(await loadAuth(region)), ...changes } });
 }
 
 function randomString() {
