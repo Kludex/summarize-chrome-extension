@@ -45,6 +45,8 @@ async function summarize({ tabId, region, model, persona }) {
     headers: {
       Authorization: `Bearer ${await accessToken(region)}`,
       "Content-Type": "application/json",
+      // The gateway forwards our Origin upstream, and Anthropic rejects browser origins without this.
+      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
       model: modelName,
